@@ -31,7 +31,7 @@ Iteration variables:
 - k: number of samples
 """
 
-def note2frequency():
+def note2frequency() -> dict:
     """
     Generates a dictionary mapping notes 
     to their corresponding frequencies [Hz].
@@ -41,22 +41,32 @@ def note2frequency():
     notes = [octave[note] + str(oct) for oct in range(1, 8) for note in range(12)]
     n = np.arange(4, 88)
     frequencies = dict(zip(notes, 440.0 * 2.0**((n-49)/12)))
-    print(frequencies)
     return frequencies
 
-def parseNotes(filename):
+
+def parseNotes(filename) -> np.array:
+    """
+    Parse the notes in the melodies.txt file and convert to their frequencies.
+    returns: np.array with frequencies
+    """    
     with open(filename, 'r') as file:
         melodies = file.readlines()
         melodies = [melody.strip().split(', ') for melody in melodies]
 
     melodies_f = np.zeros(shape=(len(melodies), len(melodies[0])))
-    for m in melodies:
-        for n in m:
+    
+    # Get the tones in melodies and convert to frequencies and place in melodies_f that should be the
+    # same as melodies but with frequencies instead of notes
+    # Get the tones in melodies and convert to frequencies and place in melodies_f
+    frequencies = note2frequency()
+    for i, m in enumerate(melodies):
+        for j, n in enumerate(m):
+            melodies_f[i][j] = frequencies[n]
 
+    for i in range(len(melodies_f)):
+        print(melodies_f[i])
 
-
-        
-    return 0
+    return melodies_f
 
 
 def generate_matrix(melody):
@@ -72,12 +82,14 @@ def generate_matrix(melody):
 
     return H_t
 
+
 def classifier(melody, m):
     """
     argmax_j sum(||H_t * y_n||^2)
     Idk return value yet
     """
     return 0
+
 
 def main():
     import sys
@@ -92,7 +104,7 @@ def main():
     melody, idx, mismatch = sg.generate_random_melody(100, 3)
     nr_samples = len(melody)
 
-    note2frequency()
+    placeholder = parseNotes('melodies.txt')
     
 
 
