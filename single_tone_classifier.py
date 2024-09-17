@@ -31,12 +31,42 @@ Iteration variables:
 - k: number of samples
 """
 
+def note2frequency():
+    """
+    Generates a dictionary mapping notes 
+    to their corresponding frequencies [Hz].
+    returns: dictionary where key=note, value=frequency
+    """
+    octave = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+    notes = [octave[note] + str(oct) for oct in range(1, 8) for note in range(12)]
+    n = np.arange(4, 88)
+    frequencies = dict(zip(notes, 440.0 * 2.0**((n-49)/12)))
+    print(frequencies)
+    return frequencies
 
-def generate_matrix(length):
+def parseNotes(filename):
+    with open(filename, 'r') as file:
+        melodies = file.readlines()
+        melodies = [melody.strip().split(', ') for melody in melodies]
+
+    melodies_f = np.zeros(shape=(len(melodies), len(melodies[0])))
+    for m in melodies:
+        for n in m:
+
+
+
+        
+    return 0
+
+
+def generate_matrix(melody):
+    """
+    Generate the transposed matrix H_t
+    """
     # Frequency ??
-    f = 440 # For now
-    H_t = np.zeros(shape=(2, length))
-    for i in range(length):
+    f = 440.0 * 2.0**((4-49)/12)
+    H_t = np.zeros(shape=(2, melody))
+    for i in range(melody):
         H_t[0][i] = math.cos(2*math.pi * f * i)
         H_t[1][i] = math.sin(2*math.pi * f * i)
 
@@ -62,23 +92,8 @@ def main():
     melody, idx, mismatch = sg.generate_random_melody(100, 3)
     nr_samples = len(melody)
 
-    H_t = generate_matrix(len(melody))
-
-    classifier(melody, len(melody))
-
-    nr_tones = 12 # all melodies have 12 tones
-    tone = melody[:int(nr_samples/nr_tones)]
-    nr_tone_samples = len(tone)
-    spectrum = np.abs(np.fft.fft(tone))
-    fs = sg.sampling_frequency
-    freqs = np.arange(nr_tone_samples) * fs / nr_tone_samples
-    plt.figure()
-    plt.plot(freqs[:int(nr_tone_samples/2)], spectrum[:int(nr_tone_samples/2)])
-    plt.xlabel('frequency [Hz]')
-    plt.ylabel('magnitude')
-    plt.savefig('python-example1.png')
-
-
+    note2frequency()
+    
 
 
 if __name__=="__main__":
