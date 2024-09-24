@@ -1,15 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
-from SignalGenerator import SignalGenerator
 import numpy as np
-import math
-import matplotlib.pyplot as plt
 
-""" TODO:
+"""
+TODO:
  1. Generate the matrix H_t
     > What is the frequency? f_{n,j}
- 
+
  2. Implement the classifier
     > Need to determine the tuning mismatch alpha ()= 0.975 or 1.025).
     > Need to determine the melody m
@@ -18,8 +15,8 @@ import matplotlib.pyplot as plt
 
 """
 Signal generator:
-- Generates one of the m melodies, selected uniformly at random. 
-- Generated melody is off pitch by a factor of 0.975 or 1.025
+- Generates one of the m melodies, selected uniformly at random.
+- Generated melody is off pitch by a factor of 0.975 or 1.025, but never 1.
 
 """
 
@@ -31,82 +28,97 @@ Iteration variables:
 - k: number of samples
 """
 
-def note2frequency() -> dict:
-    """
-    Generates a dictionary mapping notes 
-    to their corresponding frequencies [Hz].
-    returns: dictionary where key=note, value=frequency
-    """
-    octave = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-    notes = [octave[note] + str(oct) for oct in range(1, 8) for note in range(12)]
-    n = np.arange(4, 88)
-    frequencies = dict(zip(notes, 440.0 * 2.0**((n-49)/12)))
-    return frequencies
 
-
-def parseNotes(filename) -> np.array:
+def melody2frequency(melodies: list, frequencies: dict) -> np.array:
     """
     Parse the notes in the melodies.txt file and convert to their frequencies.
-    returns: np.array with frequencies
-    """    
-    with open(filename, 'r') as file:
-        melodies = file.readlines()
-        melodies = [melody.strip().split(', ') for melody in melodies]
 
+    NOTE: Taken from SignalGenerator.py line 34-37
+    """
+
+    # Convert notes to frequencies
     melodies_f = np.zeros(shape=(len(melodies), len(melodies[0])))
-    
-    # Get the tones in melodies and convert to frequencies and place in melodies_f that should be the
-    # same as melodies but with frequencies instead of notes
-    # Get the tones in melodies and convert to frequencies and place in melodies_f
-    frequencies = note2frequency()
     for i, m in enumerate(melodies):
         for j, n in enumerate(m):
             melodies_f[i][j] = frequencies[n]
 
-    for i in range(len(melodies_f)):
-        print(melodies_f[i])
+    melody_mm1 = 0.975*melodies_f
+    melody_mm2 = 1.025*melodies_f
 
-    return melodies_f
+    return melody_mm1, melody_mm2
 
 
-def generate_matrix(melody):
+def generate_matrix(melody, melody_mm1: np.array, melody_mm2: np.array,
+                    fs: int) -> np.array:
     """
-    Generate the transposed matrix H_t
+    Generate the matrix H
     """
-    # Frequency ??
-    f = 440.0 * 2.0**((4-49)/12)
-    H_t = np.zeros(shape=(2, melody))
-    for i in range(melody):
-        H_t[0][i] = math.cos(2*math.pi * f * i)
-        H_t[1][i] = math.sin(2*math.pi * f * i)
-
-    return H_t
-
-
-def classifier(melody, m):
-    """
-    argmax_j sum(||H_t * y_n||^2)
-    Idk return value yet
-    """
-    return 0
-
-
-def main():
-    import sys
-    try:
-        assert sys.version_info >= (3,0)
-    except AssertionError:
-        print("This script requires python version 3.4.3 or higher")
-        raise
-
-    sg = SignalGenerator()
-    # generate a random melody, with SNR 100 dB, and 3 tones
-    melody, idx, mismatch = sg.generate_random_melody(100, 3)
     nr_samples = len(melody)
+    nr_tones = 12  # all melodies have 12 tones
+    tone = melody[:int(nr_samples/nr_tones)]
+    #nr_tone_samples = int(len(tone)/10)
+    nr_tone_samples = len(tone)
+    melody_mm = np.vstack((melody_mm1, melody_mm2))
+    H = np.zeros(shape=(20, nr_tones, nr_tone_samples, 2))
 
-    placeholder = parseNotes('melodies.txt')
-    
+    for i, m in enumerate(melody_mm):
+        for j, f in enumerate(m):  # Each frequency f corresponds to a tone
+            for k in range(nr_tone_samples):
+                H[i, j, k, 0] = np.cos(2*np.pi*f/fs * k)
+                H[i, j, k, 1] = np.sin(2*np.pi*f/fs * k)
+
+    return H
 
 
-if __name__=="__main__":
-    main()
+def divide_melody(melody: np.array) -> np.array:
+    """
+    Divide the melody into 12 tones
+    (nr_tones x nr_tone_samples)
+    """
+    nr_samples = len(melody)
+    nr_tones = 12  # all melodies have 12 tones
+    tone = melody[:int(nr_samples/nr_tones)]
+    #nr_tone_samples = int(len(tone)/10)
+    nr_tone_samples = len(tone)
+
+    y = np.zeros(shape=(nr_tones, nr_tone_samples))
+
+    for m in range(nr_tones):
+        for n in range(nr_tone_samples):
+            y[m][n] = melody[m*nr_tone_samples + n]
+
+    return y
+
+
+def classifier(y: np.array, H: np.array) -> int:
+    """
+    argmax_{j} sum_{0}{nr_tones}(||H_{n,j} * y_{n}||^2)
+    """
+
+    j_hat = 0
+    max_sum = 0
+    alpha = 0
+
+    for j in range(H.shape[0]):  # H.shape[0] is 20
+        current_sum = 0
+
+        # Iterate over each tone (12 tones in total)
+        for n in range(H.shape[1]):  # H.shape[1] is 12 tones
+            H_nj = H[j, n]  # Shape (nr_tone_samples, 2)
+            y_n = y[n]  # Shape (nr_tone_samples,)
+
+            H_nj = np.transpose(H_nj)
+
+            norm_value = np.linalg.norm(np.matmul(H_nj, y_n)) ** 2
+            current_sum += norm_value
+
+        if current_sum > max_sum:
+            max_sum = current_sum
+            if j >= 10:
+                j_hat = j - 10
+                alpha = 1.025
+            else:
+                j_hat = j
+                alpha = 0.975
+
+    return j_hat, alpha
