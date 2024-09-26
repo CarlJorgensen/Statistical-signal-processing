@@ -3,14 +3,30 @@
 import numpy as np
 
 """
-TODO:
- 1. Generate the matrix H_t
-    > What is the frequency? f_{n,j}
+TODO
+Single:
+    1[ok]. Generate the matrix H
+        > What is the frequency? f_{n,j}
 
- 2. Implement the classifier
-    > Need to determine the tuning mismatch alpha ()= 0.975 or 1.025).
-    > Need to determine the melody m
-        - argmax_j sum(||H_t * y_n||^2)
+    2[ok]. Implement the classifier
+        > Need to determine the tuning mismatch alpha ()= 0.975 or 1.025).
+        > Need to determine the melody m
+            - argmax_j sum(||H_t * y_n||^2)
+
+    3[x]. Not looking for mismatch
+
+    4[x]. Clean up code. Fix hard coded constants.
+
+    5[x]. Comment code and note argument and return types
+
+Three:
+    1[x]. Generate matrix H
+
+    2[x]. Implement classifier.
+"""
+
+"""
+NOTE Remeber flake!
 """
 
 """
@@ -23,12 +39,13 @@ Signal generator:
 """
 Iteration variables:
 - m=10: number of melodies
+- n=12: number of tones
 - l=2: number of pitch mismatches
 - j=20: number of hypotheses (=m*l), equally likely.
 - k: number of samples
 """
 
-def generate_matrix(nr_tone_samples: int, alpha: float, 
+def single_matrix(nr_tone_samples: int, alpha: float, 
                     f_nj: int, fs: int) -> np.array:
     """
     Generates observation matrix for single tone detection.
@@ -42,8 +59,28 @@ def generate_matrix(nr_tone_samples: int, alpha: float,
     return H
 
 
-def classifier_single(melodies: list, melody: list, 
-                      K: int, frequencies: dict) -> int:
+def three_matrix(nr_tone_samples: int, alpha: float,
+                 f_nj: int, fs: int) -> np.array:
+    """
+    
+    """
+    H = np.zeros(nr_tone_samples, 6)
+    for k in range(nr_tone_samples):
+        # Tone 1
+        H[k, 0] = np.cos(2 * alpha * np.pi * f_nj/fs * k)
+        H[k, 1] = np.sin(2 * alpha * np.pi * f_nj/fs * k)
+        # Tone 2 (second-order harmonics)
+        H[k, 2] = np.cos(2 * alpha * np.pi * 3*f_nj/fs * k)
+        H[k, 3] = np.sin(2 * alpha * np.pi * 3*f_nj/fs * k)
+        # Tone 3 (fourth-order harmonics)
+        H[k, 4] = np.cos(2 * alpha * np.pi * 5*f_nj/fs * k)
+        H[k, 5] = np.sin(2 * alpha * np.pi * 5*f_nj/fs * k)
+
+    return H
+
+
+def classifier(melodies: list, melody: list,
+               K: int, frequencies: dict, ) -> int:
     """
     argmax_{j} sum_{0}{nr_tones}(||H_{n,j} * y_{n}||^2)
     """
@@ -65,7 +102,7 @@ def classifier_single(melodies: list, melody: list,
             for i in range(nr_tones):
                 y = melody[i*nr_tone_samples: (i+1)*nr_tone_samples]
                 note = notes[i]
-                H_nj = generate_matrix(nr_tone_samples, alpha, frequencies[note], 8820)
+                H_nj = single_matrix(nr_tone_samples, alpha, frequencies[note], 8820)
 
                 H_nj = np.transpose(H_nj)
                 curr_sum += np.linalg.norm(np.matmul(H_nj, y)) ** 2
@@ -75,7 +112,5 @@ def classifier_single(melodies: list, melody: list,
                 j_hat = j
                 alpha_hat = alpha
     
-
     return j_hat, alpha
-
 

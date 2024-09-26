@@ -1,47 +1,82 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from SignalGenerator import SignalGenerator
-import single_tone_classifier as stc
+import Tone_classifier as tc
 import sys
+from tqdm import tqdm
+from SignalGenerator import SignalGenerator
+from matplotlib import pyplot as plt
+import numpy as np
 
-"""
-TODO
-1. Run code many times
-2. Plot
-"""
 
-"""
-NOTE
-Not working when scaling the samples down by 10
-"""
+def montecarlo_single_tone(nr_sim: int, SNR_range: range, sample_div: int, three_tone: bool):
+    setup = SignalGenerator()
+
+    frequencies = setup.dict_note2frequency
+    melodies = setup.melodies
+
+    K = sample_div
+
+    prob_error = []
+
+    for SNR in tqdm(SNR_range, desc="SNR: ", leave=True):
+        error = 0
+        for _ in tqdm(range(nr_sim), desc="Iteration: ", leave=False):
+            sg = SignalGenerator()
+
+            melody = None
+            idx = None
+            mismatch = None
+            if three_tone != True:
+                melody, idx, mismatch = sg.generate_random_melody(SNR, 1)
+            else:
+                melody, idx, mismatch = sg.generate_random_melody(SNR, 3)
+            
+            nr_samples = len(melody)
+            nr_tones = 12
+            tone = melody[:int(nr_samples/nr_tones)]
+            nr_tone_samples = int(len(tone)/K)
+
+            j_hat, alpha = tc.classifier_single(melodies, melody, K, frequencies)
+
+            if j_hat != idx:
+                error += 1
+
+        prob_error.append(error/nr_sim)
+    
+    return prob_error
 
 
 def main():
-    try:
-        assert sys.version_info >= (3, 0)
-    except AssertionError:
-        print("This script requires python version 3.4.3 or higher")
-        raise
+    nr_sim = 200
+    SNR_range = range(-40,0)
+    sample_div = 10
+    error_data_single_tone = montecarlo_single_tone(nr_sim, 
+                                                    SNR_range, 
+                                                    sample_div,
+                                                    False) 
 
-    sg = SignalGenerator()
+    plt.figure()
+    plt.plot(SNR_range, error_data_single_tone)
+    plt.xlabel("SNR [dB]")
+    plt.ylabel("P(error)")
+    plt.title("Single-tone classifier on a single-tone melody")
+    plt.savefig("/home/carljoergensen/Courses/Master/TSKS15/music_detector/single_classifier_single_tone.png")
+    plt.clf()
 
-    melody, idx, mismatch = sg.generate_random_melody(100, 1)
+    error_data_three_tone = montecarlo_single_tone(nr_sim,
+                                                   SNR_range, 
+                                                   sample_div,
+                                                   True) 
 
-    y = stc.divide_melody(melody)
+    plt.figure()
+    plt.plot(SNR_range, error_data_three_tone)
+    plt.xlabel("SNR [dB]")
+    plt.ylabel("P(error)")
+    plt.title("Single-tone classifier on a three-tone melody")
+    plt.savefig("/home/carljoergensen/Courses/Master/TSKS15/music_detector/single_classifier_three_tone.png")
+    plt.clf()
 
-    melodies = sg.melodies
-    frequencies = sg.dict_note2frequency
-    fs = sg.sampling_frequency
-
-    melody_mm1, melody_mm2 = stc.melody2frequency(melodies, frequencies)
-
-    H_t = stc.generate_matrix(melody, melody_mm1, melody_mm2, fs)
-
-    j_hat, alpha_hat = stc.classifier(y, H_t)
-
-    print(f"Guess: {j_hat}, Actual: {idx}")
-    print(f"Guess: {alpha_hat}, Actual: {mismatch}")
 
 
 if __name__ == "__main__":
