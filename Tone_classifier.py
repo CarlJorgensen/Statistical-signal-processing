@@ -64,7 +64,7 @@ def three_matrix(nr_tone_samples: int, alpha: float,
     """
     
     """
-    H = np.zeros(nr_tone_samples, 6)
+    H = np.zeros((nr_tone_samples, 6))
     for k in range(nr_tone_samples):
         # Tone 1
         H[k, 0] = np.cos(2 * alpha * np.pi * f_nj/fs * k)
@@ -80,7 +80,7 @@ def three_matrix(nr_tone_samples: int, alpha: float,
 
 
 def classifier(melodies: list, melody: list,
-               K: int, frequencies: dict, ) -> int:
+               K: int, frequencies: dict, three_tone: bool) -> int:
     """
     argmax_{j} sum_{0}{nr_tones}(||H_{n,j} * y_{n}||^2)
     """
@@ -102,7 +102,11 @@ def classifier(melodies: list, melody: list,
             for i in range(nr_tones):
                 y = melody[i*nr_tone_samples: (i+1)*nr_tone_samples]
                 note = notes[i]
-                H_nj = single_matrix(nr_tone_samples, alpha, frequencies[note], 8820)
+                
+                if three_tone:
+                    H_nj = three_matrix(nr_tone_samples, alpha, frequencies[note], 8820)
+                else:
+                    H_nj = single_matrix(nr_tone_samples, alpha, frequencies[note], 8820)
 
                 H_nj = np.transpose(H_nj)
                 curr_sum += np.linalg.norm(np.matmul(H_nj, y)) ** 2
