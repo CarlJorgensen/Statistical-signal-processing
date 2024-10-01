@@ -9,16 +9,20 @@ from matplotlib import pyplot as plt
 import numpy as np
 
 
-def monte_carlo(nr_sim: int, SNR_range: range, sample_div: int, three_tone: bool):
+def monte_carlo(nr_sim: int, SNR_range: range, sample_div: int,
+                three_matrix: bool, three_tone: bool):
     setup = SignalGenerator()
 
     frequencies = setup.dict_note2frequency
     melodies = setup.melodies
-
     K = sample_div
 
+    if three_matrix != True:
+        H = tc.single_matrix(8820, melodies, frequencies, K)
+    else:
+        H = tc.three_matrix(8820, melodies, frequencies, K)
+    
     prob_error = []
-
     tot_error = 0
 
     for SNR in tqdm(SNR_range, desc="SNR: ", leave=True):
@@ -29,24 +33,14 @@ def monte_carlo(nr_sim: int, SNR_range: range, sample_div: int, three_tone: bool
             melody = None
             idx = None
             mismatch = None
-            # if three_tone != True:
-            #     melody, idx, mismatch = sg.generate_random_melody(SNR, 1)
-            # else:
-            #     melody, idx, mismatch = sg.generate_random_melody(SNR, 3)
-
-            melody, idx, mismatch = sg.generate_random_melody(SNR, 1)
-            
-            nr_samples = len(melody)
-            nr_tones = 12
-            tone = melody[:int(nr_samples/nr_tones)]
-            nr_tone_samples = int(len(tone)/K)
-
             if three_tone != True:
-                j_hat, alpha = tc.classifier(melodies, melody, K, frequencies, False)
+                melody, idx, mismatch = sg.generate_random_melody(SNR, 1)
             else:
-                j_hat, alpha = tc.classifier(melodies, melody, K, frequencies, True)
+                melody, idx, mismatch = sg.generate_random_melody(SNR, 3)
+
+            j_hat, alpha = tc.classifier(melodies, melody, H, K)
                 
-            if j_hat != idx:
+            if j_hat != idx or alpha != mismatch:
                 error += 1
 
         prob_error.append(error/nr_sim)
@@ -54,52 +48,40 @@ def monte_carlo(nr_sim: int, SNR_range: range, sample_div: int, three_tone: bool
 
     return prob_error, tot_error
 
-def plot(SNR_range, error_data, title):
-    plt.plot(SNR_range, error_data)
-    plt.xlabel("SNR [dB]")
-    plt.ylabel("P(error)")
-    plt.title(title)
-    plt.savefig("/home/carljoergensen/Courses/Master/TSKS15/music_detector/three_classifier_single_tone_1k.png")
-    plt.clf()
-
 
 def main():
+
+    SNR_range = range(-40, 0)
     nr_sim = 1000
-    SNR_range = range(-40,0)
     sample_div = 10
 
-    error_data_single_tone, nr_errors = monte_carlo(nr_sim,
-                                                    SNR_range,
-                                                    sample_div,
-                                                    True)
-    print(f"Total errors: {nr_errors}, out of {nr_sim*len(SNR_range)}")
-    print(f"Total successes {nr_sim*len(SNR_range) - nr_errors}")
+    # Single tone classifier on single tone melody
+    error_data1, tot_error = monte_carlo(nr_sim, SNR_range, sample_div, False, False)
+    print(f"Total error: {tot_error}, Total simulations: {nr_sim*len(SNR_range)}")
 
-    plot(SNR_range, error_data_single_tone,
-        "Three-tone classifier on a single-tone melody")
-    
-    # print(f"Total successes {nr_sim*len(SNR_range) - nr_errors}")
-    # error_data_single_tone, nr_errors = monte_carlo(nr_sim, 
-    #                                                 SNR_range, 
-    #                                                 sample_div,
-    #                                                 False) 
-    # print(f"Total errors: {nr_errors}, out of {nr_sim*len(SNR_range)}")
-    # print(f"Total successes {nr_sim*len(SNR_range) - nr_errors}")
+    # Single tone classifier on three tone melody
+    error_data2, tot_error = monte_carlo(nr_sim, SNR_range, sample_div, False, True)
+    print(f"Total error: {tot_error}, Total simulations: {nr_sim*len(SNR_range)}")
 
-    # plot(SNR_range, error_data_single_tone,
-    #      "Single-tone classifier on a single-tone melody")
+    # Three tone classifier on single tone melody
+    error_data3, tot_error = monte_carlo(nr_sim, SNR_range, sample_div, True, False)
+    print(f"Total error: {tot_error}, Total simulations: {nr_sim*len(SNR_range)}")
 
-    # error_data_three_tone, nr_errors = monte_carlo(nr_sim,
-    #                                                SNR_range, 
-    #                                                sample_div,
-    #                                                True) 
-    
-    # print(f"Total errors: {nr_errors}, out of {nr_sim*len(SNR_range)}")
-    # print(f"Total successes {nr_sim*len(SNR_range) - nr_errors}")
+    # Three tone classifier on three tone melody
+    error_data4, tot_error = monte_carlo(nr_sim, SNR_range, sample_div, True, True)
+    print(f"Total error: {tot_error}, Total simulations: {nr_sim*len(SNR_range)}")
 
-    # plot(SNR_range, error_data_three_tone,
-    #     "Single-tone classifier on a three-tone melody")
 
+    plt.figure(figsize=(10, 6))
+    plt.plot(SNR_range, error_data1, 'r-o', label="Single tone classifier on single tone melody")
+    plt.plot(SNR_range, error_data2, 'g-s', label="Single tone classifier on three tone melody")
+    plt.plot(SNR_range, error_data3, 'b-^', label="Three tone classifier on single tone melody")
+    plt.plot(SNR_range, error_data4, 'm-d', label="Three tone classifier on three tone melody")
+    plt.xlabel("SNR [dB]")
+    plt.ylabel("P(error)")
+    plt.title("Monte Carlo Simulation")
+    plt.legend(loc="upper right")
+    plt.savefig("/home/carljoergensen/Courses/Master/TSKS15/music_detector/monte_carlo.png")
 
 
 if __name__ == "__main__":

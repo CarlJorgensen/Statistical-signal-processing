@@ -13,11 +13,9 @@ Single:
         > Need to determine the melody m
             - argmax_j sum(||H_t * y_n||^2)
 
-    3[x]. Not looking for mismatch
+    3[x]. Clean up code. Fix hard coded constants.
 
-    4[x]. Clean up code. Fix hard coded constants.
-
-    5[x]. Comment code and note argument and return types
+    4[x]. Comment code and note argument and return types
 
 Three:
     1[x]. Generate matrix H
@@ -27,6 +25,9 @@ Three:
 
 """
 NOTE Remeber flake!
+
+there is pause note in melody
+
 """
 
 """
@@ -45,50 +46,69 @@ Iteration variables:
 - k: number of samples
 """
 
-def single_matrix(nr_tone_samples: int, alpha: float, 
-                    f_nj: int, fs: int) -> np.array:
+def single_matrix(fs: int, melodies: np.array, frequencies: dict, K: int) -> np.array:
     """
     Generates observation matrix for single tone detection.
     alpha = mismatch, f_nj = fundamental freq.
     """
+
+    nr_tone_samples = int((43392/12)/K)
+
     H = np.zeros((nr_tone_samples, 2))
-    for k in range(nr_tone_samples):
-        H[k, 0] = np.cos(2 * alpha * np.pi * f_nj/fs * k)
-        H[k, 1] = np.sin(2 * alpha * np.pi * f_nj/fs * k)
 
-    return H
+    big_H = {0.975: {}, 1.025: {}}
+
+    alpha = [0.975, 1.025]
+
+    for mm in alpha:
+        for j in range(len(melodies)):
+            for m in melodies[j]:
+                f_nj = mm * frequencies[m]
+                for k in range(nr_tone_samples):
+                    H[k, 0] = np.cos(2 * np.pi * f_nj/fs * k)
+                    H[k, 1] = np.sin(2 * np.pi* f_nj/fs * k)
+                big_H[mm][m] = H.copy()
+
+    return big_H
 
 
-def three_matrix(nr_tone_samples: int, alpha: float,
-                 f_nj: int, fs: int) -> np.array:
+def three_matrix(fs: int, melodies: np.array, frequencies: dict, K: int) -> np.array:
     """
     
     """
+    nr_tone_samples = int((43392/12)/K)
+    big_H = {0.975: {}, 1.025: {}}
+
     H = np.zeros((nr_tone_samples, 6))
-    for k in range(nr_tone_samples):
-        # Tone 1
-        H[k, 0] = np.cos(2 * alpha * np.pi * f_nj/fs * k)
-        H[k, 1] = np.sin(2 * alpha * np.pi * f_nj/fs * k)
-        # Tone 2 (second-order harmonics)
-        H[k, 2] = np.cos(2 * alpha * np.pi * 3*f_nj/fs * k)
-        H[k, 3] = np.sin(2 * alpha * np.pi * 3*f_nj/fs * k)
-        # Tone 3 (fourth-order harmonics)
-        H[k, 4] = np.cos(2 * alpha * np.pi * 5*f_nj/fs * k)
-        H[k, 5] = np.sin(2 * alpha * np.pi * 5*f_nj/fs * k)
 
-    return H
+    alpha = [0.975, 1.025]
+
+    for mm in alpha:
+        for j in range(len(melodies)):
+            for m in melodies[j]:
+                f_nj = mm * frequencies[m]
+                for k in range(nr_tone_samples):
+                    # Tone 1 
+                    H[k, 0] = np.cos(2 * np.pi * f_nj/fs * k)
+                    H[k, 1] = np.sin(2 * np.pi * f_nj/fs * k)
+                    # Tone 2 (second-order harmonics)
+                    H[k, 2] = np.cos(2 * np.pi * 3*f_nj/fs * k)
+                    H[k, 3] = np.sin(2 * np.pi * 3*f_nj/fs * k)
+                    # Tone 3 (fourth-order harmonics)
+                    H[k, 4] = np.cos(2 * np.pi * 5*f_nj/fs * k)
+                    H[k, 5] = np.sin(2 * np.pi * 5*f_nj/fs * k)
+                big_H[mm][m] = H.copy()
+
+    return big_H
 
 
-def classifier(melodies: list, melody: list,
-               K: int, frequencies: dict, three_tone: bool) -> int:
+def classifier(melodies: list, melody: list, H: np.array,
+               K: int) -> int:
     """
-    argmax_{j} sum_{0}{nr_tones}(||H_{n,j} * y_{n}||^2)
+    argmax_{j} sum_{0}->{nr_tones}(||H_{n,j} * y_{n}||^2)
     """
 
-    nr_samples = len(melody)
-    nr_tones = 12 # all melodies have 12 tones
-    tone = melody[:int(nr_samples/nr_tones)]
-    nr_tone_samples = int(len(tone)/K)
+    nr_tone_samples = int((43392/12)/K)
 
     mismatches = [0.975, 1.025]
 
@@ -96,25 +116,25 @@ def classifier(melodies: list, melody: list,
     alpha_hat = None
     max_sum = -10000
 
+    y = np.split(melody, 12)
+
+    i = 0
+    curr_sum = 0
     for alpha in mismatches:
-        for j, notes in enumerate(melodies):
-            curr_sum = 0
-            for i in range(nr_tones):
-                y = melody[i*nr_tone_samples: (i+1)*nr_tone_samples]
-                note = notes[i]
-                
-                if three_tone:
-                    H_nj = three_matrix(nr_tone_samples, alpha, frequencies[note], 8820)
-                else:
-                    H_nj = single_matrix(nr_tone_samples, alpha, frequencies[note], 8820)
-
-                H_nj = np.transpose(H_nj)
-                curr_sum += np.linalg.norm(np.matmul(H_nj, y)) ** 2
-
+        for j in range(len(melodies)):
+            for tone in melodies[j]:
+                y_col = y[i].reshape(-1, 1)             
+                y_col = y_col[:nr_tone_samples]
+                norm = (np.linalg.norm(np.matmul((H[alpha][tone]).T, y_col))) ** 2
+                curr_sum += norm
+                i += 1  
             if curr_sum > max_sum:
                 max_sum = curr_sum
                 j_hat = j
                 alpha_hat = alpha
-    
-    return j_hat, alpha
+
+            curr_sum = 0
+            i = 0    
+
+    return j_hat, alpha_hat
 
