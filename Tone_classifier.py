@@ -52,11 +52,11 @@ def single_matrix(fs: int, melodies: np.array, frequencies: dict, K: int) -> np.
     alpha = mismatch, f_nj = fundamental freq.
     """
 
-    nr_tone_samples = int((43392/12)/K)
+    nr_tone_samples = int((43392/12)/K) # <--- Hardcoded it is len(melody)/12
 
     H = np.zeros((nr_tone_samples, 2))
 
-    big_H = {0.975: {}, 1.025: {}}
+    H_nj = {0.975: {}, 1.025: {}}
 
     alpha = [0.975, 1.025]
 
@@ -67,9 +67,9 @@ def single_matrix(fs: int, melodies: np.array, frequencies: dict, K: int) -> np.
                 for k in range(nr_tone_samples):
                     H[k, 0] = np.cos(2 * np.pi * f_nj/fs * k)
                     H[k, 1] = np.sin(2 * np.pi* f_nj/fs * k)
-                big_H[mm][m] = H.copy()
+                H_nj[mm][m] = H.copy()
 
-    return big_H
+    return H_nj
 
 
 def three_matrix(fs: int, melodies: np.array, frequencies: dict, K: int) -> np.array:
@@ -77,7 +77,7 @@ def three_matrix(fs: int, melodies: np.array, frequencies: dict, K: int) -> np.a
     
     """
     nr_tone_samples = int((43392/12)/K)
-    big_H = {0.975: {}, 1.025: {}}
+    H_nj = {0.975: {}, 1.025: {}}
 
     H = np.zeros((nr_tone_samples, 6))
 
@@ -97,9 +97,9 @@ def three_matrix(fs: int, melodies: np.array, frequencies: dict, K: int) -> np.a
                     # Tone 3 (fourth-order harmonics)
                     H[k, 4] = np.cos(2 * np.pi * 5*f_nj/fs * k)
                     H[k, 5] = np.sin(2 * np.pi * 5*f_nj/fs * k)
-                big_H[mm][m] = H.copy()
+                H_nj[mm][m] = H.copy()
 
-    return big_H
+    return H_nj
 
 
 def classifier(melodies: list, melody: list, H: np.array,
@@ -108,7 +108,7 @@ def classifier(melodies: list, melody: list, H: np.array,
     argmax_{j} sum_{0}->{nr_tones}(||H_{n,j} * y_{n}||^2)
     """
 
-    nr_tone_samples = int((43392/12)/K)
+    nr_tone_samples = int((len(melody/12))/K) # 361 @ K=10
 
     mismatches = [0.975, 1.025]
 
